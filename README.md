@@ -1,4 +1,4 @@
-# imx93-eiq-cpp
+# imx93-edge-lab
 
 ## Mission Statement
 Showcase i.MX93 capability through AI benchmark-driven demos and embedded toolkit workflows.  

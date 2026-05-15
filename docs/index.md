@@ -19,11 +19,10 @@ cd imx93-edge-lab
 
 For detailed build instructions for the benchmark tool, please visit the AI Benchmarks Quick Start.
 
-## Project Phases
-- [x] **Phase 1:** AI Benchmark + GitHub Page
-- [ ] **Phase 2:** Model Demos
-- [ ] **Phase 3:** Platform Integration
-- [ ] **Phase 4:** Power & Thermal Monitoring
-- [ ] **Phase 5:** Toolkit Release
+## Performance Results
+
+Curious about the real-world inference latency difference between the Cortex-A55 CPU and the Ethos-U65 NPU on the i.MX93?
+
+👉 **[View the Hardware Benchmark Results](results.md)**
 
 *Maintained by KR-EMSYS-LAB*
