@@ -1,0 +1,20 @@
+{
+  "project": "imx93-edge-lab",
+  "ecosystem": "KR-EMSYS-LAB",
+  "target_platform": "NXP i.MX93",
+  "cpus": ["Dual Cortex-A55", "Arm M33"],
+  "npu": "Ethos-U65",
+  "purpose": "Toolkit for embedded AI, performance benchmarks, and platform demos",
+  "modules": [
+    "docs",
+    "src",
+    "benchmarks",
+    "models",
+    "platform",
+    "scripts",
+    "tests",
+    "tools"
+  ],
+  "status": "planning",
+  "owner": "KR-EMSYS-LAB"
+}

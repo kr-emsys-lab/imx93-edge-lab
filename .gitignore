@@ -1,0 +1,33 @@
+# CMake / Build
+build/
+build_yocto/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+compile_commands.json
+
+# C++ Objects and Executables
+*.o
+*.a
+*.so
+imx93_benchmark
+
+# Python (for future scripts)
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# OS and IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Downloaded Assets & SDKs
+models/
+*.tflite
+yocto_sdk/
+sdk_installer.sh
+
+*/models
