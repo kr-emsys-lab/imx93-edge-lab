@@ -1,4 +1,4 @@
-# imx93-edge-lab Technical Specification
+# AI C++ Benchmarks Specification
 
 ## Purpose
 Provide a developer-facing technical specification for the i.MX93 performance benchmark tool, comparing CPU vs NPU inference latency using TensorFlow Lite and Ethos-U65.

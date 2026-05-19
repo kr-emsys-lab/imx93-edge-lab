@@ -4,7 +4,7 @@ Phase 1 benchmark module for i.MX93 CPU vs NPU inference latency.
 
 ## Contents
 - `CMakeLists.txt`
-- `SPEC.md`
+- `AI_SPEC.md`
 - `docs/`
 - `src/`
 - `benchmarks/`

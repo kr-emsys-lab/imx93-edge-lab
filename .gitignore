@@ -27,6 +27,7 @@ venv/
 # Downloaded Assets & SDKs
 models/
 *.tflite
+yocto_build/
 yocto_sdk/
 sdk_installer.sh
 
