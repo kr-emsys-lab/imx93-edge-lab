@@ -10,7 +10,7 @@
 #include "tensorflow/lite/model.h"
 
 #ifdef ENABLE_NPU
-#include "ethosu_delegate.h"
+#include "tensorflow/lite/delegates/external/external_delegate.h"
 #endif
 
 namespace imx93 {
@@ -52,10 +52,15 @@ BenchmarkResult BenchmarkRunner::Run(const BenchmarkConfig& config) {
 #ifdef ENABLE_NPU
     TfLiteDelegate* ethosu_delegate = nullptr;
     if (config.backend == HardwareBackend::NPU) {
-        ethosu_delegate_options options = ethosu_delegate_options_default();
-        ethosu_delegate = ethosu_delegate_create(&options);
-        if (interpreter->ModifyGraphWithDelegate(ethosu_delegate) != kTfLiteOk) {
-            std::cerr << "Failed to apply Ethos-U delegate\n";
+        TfLiteExternalDelegateOptions delegate_options = TfLiteExternalDelegateOptionsDefault((char*)"/usr/lib/libethosu_delegate.so");
+        delegate_options.lib_path = (char*)"/usr/lib/libethosu_delegate.so";
+
+        ethosu_delegate = TfLiteExternalDelegateCreate(&delegate_options);
+        if (!ethosu_delegate) {
+            std::cerr << "Failed to create external Ethos-U delegate from "
+                      << delegate_options.lib_path << "\n";
+        } else if (interpreter->ModifyGraphWithDelegate(ethosu_delegate) != kTfLiteOk) {
+            std::cerr << "Failed to apply Ethos-U external delegate\n";
         }
     }
 #else
@@ -69,7 +74,7 @@ BenchmarkResult BenchmarkRunner::Run(const BenchmarkConfig& config) {
     if (interpreter->AllocateTensors() != kTfLiteOk) {
         std::cerr << "Failed to allocate tensors\n";
 #ifdef ENABLE_NPU
-        if (ethosu_delegate) ethosu_delegate_delete(ethosu_delegate);
+        if (ethosu_delegate) TfLiteExternalDelegateDelete(ethosu_delegate);
 #endif
         return result;
     }
@@ -105,7 +110,7 @@ BenchmarkResult BenchmarkRunner::Run(const BenchmarkConfig& config) {
     // Cleanup
 #ifdef ENABLE_NPU
     if (ethosu_delegate) {
-        ethosu_delegate_delete(ethosu_delegate);
+        TfLiteExternalDelegateDelete(ethosu_delegate);
     }
 #endif
 

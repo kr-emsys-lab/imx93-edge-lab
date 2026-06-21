@@ -4,13 +4,8 @@ Phase 1 benchmark module for i.MX93 CPU vs NPU inference latency.
 
 ## Contents
 - `CMakeLists.txt`
-- `AI_SPEC.md`
-- `docs/`
+- `SPEC.md`
 - `src/`
-- `benchmarks/`
-- `models/`
-- `platform/`
-- `tests/`
 
 ## Goal
 Measure TensorFlow Lite inference latency on Cortex-A55 and Ethos-U65, then report results in a CLI table.

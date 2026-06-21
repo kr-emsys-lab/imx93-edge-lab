@@ -25,4 +25,4 @@ Curious about the real-world inference latency difference between the Cortex-A55
 
 👉 **[View the Hardware Benchmark Results](results.md)**
 
-*Maintained by KR-EMSYS-LAB*
+*Maintained by kr-emsys-lab*

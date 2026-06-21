@@ -3,6 +3,9 @@
 ## Mission Statement
 The `imx93-edge-lab` is a comprehensive toolkit designed to showcase the capabilities of the NXP i.MX93 processor. It provides developers with ready-to-use AI benchmarks, embedded workflows, and profiling tools to evaluate the ARM Cortex-A55 and Ethos-U65 NPU.
 
+## Current Status
+Phase 1 has completed host-side validation for the benchmark tool and model workflows. The i.MX93 FRDM board hardware benchmark execution is still pending.
+
 ## Repository Structure
 The repository is organized into distinct feature modules. Project-wide documentation is centralized, while feature-specific code and specs are self-contained.
 

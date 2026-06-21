@@ -15,11 +15,9 @@ if(NOT TFLITE_INCLUDE_DIR OR NOT TFLITE_LIB)
 endif()
 
 if(ENABLE_NPU)
-  find_path(ETHOSU_INCLUDE_DIR ethosu_delegate.h)
-  find_library(ETHOSU_DELEGATE_LIB NAMES ethosu_delegate libethosu_delegate libethosu_delegate.so.1)
-  if(NOT ETHOSU_INCLUDE_DIR OR NOT ETHOSU_DELEGATE_LIB)
-    message(FATAL_ERROR "Ethos-U delegate not found. Disable with -DENABLE_NPU=OFF or set paths.")
-  endif()
+  # When using the external delegate pattern, the Ethos-U delegate library is loaded at runtime,
+  # so build-time linking to the delegate library is not required.
+  message(STATUS "Building with NPU runtime support using the TensorFlow Lite external delegate pattern.")
 endif()
 
 add_executable(imx93_benchmark
@@ -47,7 +45,5 @@ if(TFLITE_BUILD_DIR)
 endif()
 
 if(ENABLE_NPU)
-  target_include_directories(imx93_benchmark PRIVATE ${ETHOSU_INCLUDE_DIR})
-  target_link_libraries(imx93_benchmark PRIVATE ${ETHOSU_DELEGATE_LIB})
   target_compile_definitions(imx93_benchmark PRIVATE ENABLE_NPU)
 endif()

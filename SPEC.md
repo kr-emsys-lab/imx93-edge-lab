@@ -8,9 +8,10 @@ This main specification delegates detailed technical requirements to module-spec
 
 *   **AI Benchmarks:** `ai-cpp-benchmarks/AI_SPEC.md` - Details the C++ architecture for CPU vs NPU inference latency measurement.
 *   **Feature Modules:** Any new feature (e.g., Power Monitoring, Device Tree Overlays) must have its own `feature.md` file in its respective directory.
+*   **Subproject Specs:** Each major subproject should also maintain a dedicated `SPEC.md` in its own folder, as with `ai-cpp-benchmarks/AI_SPEC.md`.
 
 ## 3. Hardware Target
-*   **Board:** NXP i.MX93 Evaluation Kit (EVK)
+*   **Board:** NXP i.MX93 FRDM board
 *   **CPU:** ARM Cortex-A55
 *   **NPU:** ARM Ethos-U65
 *   **OS:** Yocto Linux (fsl-imx-xwayland)
