@@ -10,15 +10,16 @@ Phase 1 has completed host-side validation for the benchmark tool and model work
 The repository is organized into distinct feature modules. Project-wide documentation is centralized, while feature-specific code and specs are self-contained.
 
 - **`docs/`**: Project-wide GitHub Pages content. Any feature that needs public-facing documentation (like benchmark results or tutorials) gets published here.
-- **`ai-cpp-benchmarks/`**: C++ performance benchmark project for CPU vs NPU inference. Contains its own technical spec (`AI_SPEC.md`).
-- **`scripts/`**: Automation scripts, including the Yocto BSP sync and SDK builder (`build_yocto.sh`).
-- **`device-tree/`**: Overlay snippets for I2C, SPI, and board configuration.
-- **`power-management/`**: Scripts and data collection for NPU/CPU power monitoring.
-- **`tools/`**: Shell scripts for flashing, NXP SPSDK templates, and utility helpers.
+- **`ai-cpp-benchmarks/`**: C++ performance benchmark project for CPU vs NPU inference. Contains its own technical spec (`ai-cpp-benchmarks/feature.md`).
+- **`ai-cpp-validation/`**: C++ project for OpenSSL vs EdgeLock Secure Enclave model decryptipon and signature verificatione. Contains its own technical spec (`ai-cpp-validation/feature.md`).
+- **`scripts/`**: Automation scripts, including the Yocto BSP sync and SDK builder (`build_yocto.sh`). (DRAFT)
 - **`SPEC.md` / `PHASES.md`**: Core system architecture rules and project roadmap tracking.
 
 ## AI Benchmarks (CPU vs. NPU)
-The flagship feature of this toolkit is the `ai-cpp-benchmarks` application. It is a streamlined C++ tool built to measure and compare TensorFlow Lite inference latency directly on the i.MX93 hardware.
+The feature of this toolkit is the `ai-cpp-benchmarks` application. It is a streamlined C++ tool built to measure and compare TensorFlow Lite inference latency directly on the i.MX93 hardware.
+
+## Edge AI Validation (OpenSSL vs. EdgeLock Secure Enclave)
+The feature of this toolkit is the `ai-cpp-validation` application. It is a streamlined C++ tool built to decrypt, verify the ML Models directly on the i.MX93 hardware.
 
 > **Developer Note:** We are actively building out more features! Check out **PHASES.md** to see our internal development roadmap and upcoming milestones (like Vision Model Demos and Power Monitoring).
 

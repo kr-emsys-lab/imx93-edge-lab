@@ -5,12 +5,12 @@
 - [x] Define developer spec in `ai-cpp-benchmarks/feature.md`
 - [x] Publish landing page content in `README.md`
 - [x] Validate benchmark tool and models on the host PC
-- [ ] Execute the benchmark on the i.MX93 FRDM board and extract baseline metrics
+- [x] Execute the benchmark on the i.MX93 FRDM board and extract baseline metrics
 
 ## Phase 2: Edge AI Hardware Validation
-- [ ] Provision the i.MX93 target with the stock, unhardened Yocto image
-- [ ] Run the dynamic linker verification and the C++ TFLite benchmark via the Ethos-U65 External Delegate
-- [ ] Log baseline inference latency, operational execution times, and NPU driver behavior
+- [x] Provision the i.MX93 target with the stock, unhardened Yocto image
+- [x] Run the dynamic linker verification and the C++ TFLite benchmark via the Ethos-U65 External Delegate
+- [x] Log baseline inference latency, operational execution times, and NPU driver behavior
 
 ## Phase 3: Model Protection & Target Verification
 - [ ] Design an offline tooling pipeline to encrypt TFLite models via AES-256-GCM and generate SHA-256 integrity signatures

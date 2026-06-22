@@ -6,9 +6,9 @@ The `imx93-edge-lab` repository provides a comprehensive toolkit for benchmarkin
 ## 2. Component Specifications
 This main specification delegates detailed technical requirements to module-specific documents:
 
-*   **AI Benchmarks:** `ai-cpp-benchmarks/AI_SPEC.md` - Details the C++ architecture for CPU vs NPU inference latency measurement.
-*   **Feature Modules:** Any new feature (e.g., Power Monitoring, Device Tree Overlays) must have its own `feature.md` file in its respective directory.
-*   **Subproject Specs:** Each major subproject should also maintain a dedicated `SPEC.md` in its own folder, as with `ai-cpp-benchmarks/AI_SPEC.md`.
+*   **AI Benchmarks:** `ai-cpp-benchmarks/feature.md` - Details the C++ architecture for CPU vs NPU inference latency measurement.
+*   **Feature Modules:** Any new feature (e.g., Edge AI Validation, Yocto integation) must have its own `feature.md` file in its respective directory.
+*   **Subproject Specs:** Each major subproject should also maintain a dedicated `SPEC.md` in its own folder, as with `ai-cpp-benchmarks/feature.md`.
 
 ## 3. Hardware Target
 *   **Board:** NXP i.MX93 FRDM board
