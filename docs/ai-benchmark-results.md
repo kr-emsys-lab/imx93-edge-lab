@@ -15,6 +15,6 @@ The following table demonstrates the performance baseline when running a standar
 +-----------------------------------------+--------------+--------------------+----------------+
 ```
 
-> Measured on the NXP i.MX93 FRDM board (Cortex-A55 CPU vs. Ethos-U65 NPU) using TensorFlow Lite 2.19.0, averaged over 100 timed inferences. The NPU delegate reports `1 nodes delegated out of 1 nodes`, confirming the full graph runs on the Ethos-U65.
+> Measured on the NXP i.MX93 FRDM board (Cortex-A55 CPU vs. Ethos-U65 NPU) using TensorFlow Lite 2.16.0, averaged over 100 timed inferences. The NPU delegate reports `1 nodes delegated out of 1 nodes`, confirming the full graph runs on the Ethos-U65.
 
 👉 **[Back to Home](index.md)**

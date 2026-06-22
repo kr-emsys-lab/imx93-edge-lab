@@ -7,22 +7,22 @@ This toolkit provides developer resources to evaluate and utilize the i.MX93 SoC
 
 ## Core Modules
 *   **AI C++ Benchmarks:** A streamlined C++ application to measure inference latency (CPU vs. NPU).
-*   **Model Demos (Phase 2):** Pre-compiled assets and workflows for standard vision models.
-*   **Platform Integration (Phase 3):** Board-specific device tree overlays and utility helpers.
-*   **Power Monitoring (Phase 4):** Latency and energy correlation metrics.
+*   **Edge AI Hardware Validation (Phase 2):** Pre-compiled assets and workflows for standard vision models.
+*   **Model Protection & Target Verification (Phase 3):** C++ application to to decrypt and verify signature of Models on HW.
+*   **Boot2Trust Platform Hardening (Phase 4):** Userspace application isolation to secure the Edge AI runtime execution environment.
 
 ## Getting Started
 ```bash
-git clone https://github.com/KR-EMSYS-LAB/imx93-edge-lab.git
+git clone https://github.com/kr-emsys-lab/imx93-edge-lab.git
 cd imx93-edge-lab
 ```
 
-For detailed build instructions for the benchmark tool, please visit the AI Benchmarks Quick Start.
+For detailed build instructions for the c++ benchmark tool, please visit the AI Benchmarks Quick Start.
 
 ## Performance Results
 
 Curious about the real-world inference latency difference between the Cortex-A55 CPU and the Ethos-U65 NPU on the i.MX93?
 
-👉 **[View the Hardware Benchmark Results](results.md)**
+👉 **[View the Hardware Benchmark Results](ai-benchmark-results.md)**
 
 *Maintained by kr-emsys-lab*

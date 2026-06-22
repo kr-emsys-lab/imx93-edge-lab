@@ -32,3 +32,6 @@ yocto_sdk/
 sdk_installer.sh
 
 */models
+vendor/*
+.bundle/*
+_site/*
