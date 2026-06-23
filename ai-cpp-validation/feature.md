@@ -50,6 +50,41 @@ The purpose of this feature is to transform the `ai-cpp-validation` tool from a 
 * **Software Mode:** Expects a raw standard symmetric AES key and asymmetric `public_key.pem` on the local file system alongside the runtime arguments.
 * **Hardware Mode:** Expects pre-provisioned or securely imported transient RAM Key Slot IDs inside the ELE Keystore (both for the AES decryption key and the ECDSA public key). Raw key material is never exposed to Linux user-space memory.
 
+### Components
+- `ValidationConfig`
+  - `model_path` (encrypted `.tflite.enc`)
+  - `signature_path` (detached `.sig`)
+  - `engine` (`openssl` or `ele`)
+  - `key_source` (software file paths vs ELE key slot IDs)
+  - `chunk_size`
+- `ValidationResult`
+  - `engine`
+  - `integrity_pass`
+  - `decrypt_latency_ms`
+  - `verify_latency_ms`
+  - `total_latency_ms`
+- `CryptoEngine` (abstract interface)
+  - `decrypt_chunk()` — decrypt one ciphertext block into plaintext
+  - `verify_signature()` — verify the accumulated digest against the detached signature
+  - `init()` / `release()` — set up and tear down engine/session resources
+- `OpenSslEngine : CryptoEngine`
+  - software path via `libcrypto`
+  - AES-256 chunk decryption with a local raw key
+  - ECDSA P-256 verification using `model_public_key.pem`
+- `EleEngine : CryptoEngine`
+  - hardware path via the EdgeLock Secure Enclave
+  - chunk decryption through `hsm_cipher_one_go`
+  - signature verification through `hsm_verify_signature`
+  - opens the ELE key store / cipher service session and references key slot IDs
+- `ModelDecryptor`
+  - streams the encrypted model in chunks through the selected `CryptoEngine`
+  - accumulates plaintext for handoff to inference
+- `SignatureVerifier`
+  - accumulates a SHA-256 digest over the decrypted plaintext
+  - delegates final verification of the digest + `.sig` to the `CryptoEngine`
+- `CliReporter`
+  - tabular output of engine vs. decrypt/verify latency and integrity pass/fail
+
 ## 4. Implementation Roadmap
 
 ### Sub-Phase 3.1: Offline Tooling & Software Engine Baseline (OpenSSL Host & HW)
