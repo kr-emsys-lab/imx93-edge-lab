@@ -23,3 +23,35 @@ openssl ec -in model_private_key.pem -pubout -out model_public_key.pem
 
 # Generate a random 256-bit key for AES-256-CBC encryption
 openssl rand -hex 32 > model_aes.key
+```
+
+### Step 2: Encrypt the Model (AES-256-CBC)
+Encrypt the plaintext `.tflite` with a fresh random IV, then **prepend the raw 16-byte IV** to the ciphertext. The runtime reads the IV from the first 16 bytes of the `.enc` file.
+
+```bash
+# Random 16-byte IV (hex)
+IV_HEX=$(openssl rand -hex 16)
+
+# AES-256-CBC encryption using the raw key (no salt/KDF, so it matches the runtime)
+openssl enc -aes-256-cbc -K "$(cat model_aes.key)" -iv "$IV_HEX" \
+    -in model.tflite -out ciphertext.bin
+
+# Final asset = [16 raw IV bytes][ciphertext]
+printf '%s' "$IV_HEX" | xxd -r -p > model.tflite.enc
+cat ciphertext.bin >> model.tflite.enc
+```
+
+### Step 3: Sign the Model (ECDSA / SHA-256)
+The signature is computed over the **plaintext** model. The runtime decrypts first, hashes the recovered plaintext with SHA-256, then verifies against this detached signature.
+
+```bash
+openssl dgst -sha256 -sign model_private_key.pem -out model.tflite.sig model.tflite
+```
+
+### Encrypted File Format
+| Offset | Size      | Contents                          |
+| :----- | :-------- | :-------------------------------- |
+| 0      | 16 bytes  | AES-CBC initialization vector     |
+| 16     | remainder | AES-256-CBC ciphertext (PKCS#7)   |
+
+> 💡 **Shortcut:** `scripts/prepare_model.sh <model.tflite> [out_dir]` runs all three steps above (generating keys if absent) and prints the exact `ai-cpp-validation` command to run on the target.
