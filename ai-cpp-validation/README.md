@@ -139,6 +139,50 @@ Verification object:
 
 Object provisioning is intentionally separate from this application. The runtime never creates, imports, overwrites, or deletes ELE objects.
 
+## NXP PKCS#11 Tool and Provisioning Reference
+
+See NXP's [SMW PKCS#11 Tool User Guide](https://github.com/nxp-imx/imx-smw/blob/release/version_5.x/Documentations/user_guide/pkcs11/pkcs11_tool_user_guide.md) for the supported `pkcs11-tool` operations and i.MX93 examples.
+
+Use `--write-object` when importing an existing key object into storage. For production, the AES input must be an ELE/SMW-compatible securely wrapped key blob created by the approved provisioning process; never import a plaintext production AES key. The exact wrapped format and wrapping authority are deployment-specific.
+
+For development only, when the development storage configuration permits plaintext test-key import, the OpenSSL-generated hexadecimal AES key can be converted to raw bytes and imported for functional testing:
+
+```bash
+xxd -r -p model_aes.key > model_aes.raw
+
+pkcs11-tool \
+  --module /usr/lib/libsmw_pkcs11.so.5 \
+  --login \
+  --write-object model_aes.raw \
+  --type secrkey \
+  --key-type AES:32 \
+  --id 01 \
+  --label MyAESKey \
+  --usage-decrypt
+```
+
+The development command exposes plaintext AES key material to Linux userspace and the target filesystem and must not be used as the production provisioning method. Do not retain the raw key file on the target after the controlled development import.
+
+The EC verification key is public. Convert the PEM key to DER before importing it with `--write-object`:
+
+```bash
+openssl pkey -pubin \
+  -in model_public_key.pem \
+  -outform DER \
+  -out model_public_key.der
+
+pkcs11-tool \
+  --module /usr/lib/libsmw_pkcs11.so.5 \
+  --login \
+  --write-object model_public_key.der \
+  --type pubkey \
+  --id 02 \
+  --label MyECCKey \
+  --usage-sign
+```
+
+Labels and IDs in these examples must match the runtime selectors. Confirm the resulting object attributes with `pkcs11-tool --list-objects` before validation.
+
 ## Other Options
 
 ```text
