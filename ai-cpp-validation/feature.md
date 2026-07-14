@@ -1,142 +1,160 @@
 # Feature Description: Secure Model Protection & Target Verification
 
 ## 1. Purpose
-The purpose of this feature is to transform the `ai-cpp-validation` tool from a pure performance benchmark into a hardened execution runtime. It ensures the **Confidentiality** (Intellectual Property protection via AES decryption) and **Integrity** (Authenticity verification via digital signatures) of AI models before they are loaded into memory or passed to the NPU/CPU for inference.
+
+The `ai-cpp-validation` tool protects AI model confidentiality with AES encryption and verifies model authenticity before plaintext is handed to an inference runtime. Phase 3 compares a software OpenSSL path with an NXP EdgeLock-backed path exposed through the SMW PKCS#11 module.
 
 ## 2. Scope
-* **In Scope:**
-  * Host-side scripts for model encryption (AES-256-CBC/CTR) and signing (ECDSA P-256 / SHA-256) via OpenSSL.
-  * Target C++ application support for streaming/chunk-based model decryption.
-  * Dual-engine verification architecture controlled via command-line arguments (`--engine openssl` vs `--engine ele`).
-  * Explicit command-line parameters to accept the encrypted model path and its detached signature path.
-  * Hardware-accelerated block decryption loop inside the C++ runtime via the NXP EdgeLock Secure Enclave (ELE) Cipher Service (`hsm_cipher_one_go`) for demonstration purposes.
-  * Hardware-anchored signature verification utilizing the ELE APIs (`hsm_verify_signature`).
-* **Out of Scope:**
-  * System-wide platform integration like secure boot (AHAB) or read-only rootfs integrity (`dm-verity`), which are deferred to **Phase 4**.
 
-## 3. Architecture
+### In Scope
 
-[ Params: --model <path> --signature <path> ]
-                                  │
-                                  ▼
-                   ┌─────────────────────────────┐
-                   │   Command Line Argument    │
-                   │   --engine <openssl|ele>    │
-                   └──────────────┬──────────────┘
-                                  │
-           ┌──────────────────────┴──────────────────────┐
-           ▼                                             ▼
- [ Engine: openssl ]                             [ Engine: ele ]
-┌───────────────────────────┐                 ┌───────────────────────────┐
-│ User-space Decryption     │                 │ Hardware Decryption Loop  │
-│ (Chunks via LibCrypto)    │                 │ (Chunks via ELE Cipher    │
-├───────────────────────────┤                 │  Service: hsm_cipher_one_go)
-│ Hash Generation (SHA256)  │                 ├───────────────────────────┤
-├───────────────────────────┤                 │ Hash Generation (SHA256)  │
-│ Software Verification     │                 ├───────────────────────────┤
-│ Passes local signature &  │                 │ Hardware Verification     │
-│ public_key.pem to OpenSSL │                 │ Passes signature & hash   │
-└───────────────────────────┘                 │ context via hsm_verify    │
-│                                └───────────────────────────┘
-│                                             │
-└──────────────────────┬──────────────────────┘
-│
-▼
-[ Integrity Pass / Fail ]
-│
-(If Pass: Load to NPU for Inference)
+- Host-side OpenSSL tooling for AES-256-CBC encryption and ECDSA P-256/SHA-256 signing.
+- Target C++ support for streaming model decryption and detached signature verification.
+- Runtime selection with `--engine openssl` or `--engine pkcs11`; `ele` remains a compatibility alias for `pkcs11`.
+- SMW PKCS#11 integration through `/usr/lib/libsmw_pkcs11.so.5`.
+- Selection of provisioned ELE-backed objects by PKCS#11 label and/or `CKA_ID`.
+- Decrypt, verify, and total validation latency reporting.
 
-### Key Management Design
-* **Software Mode:** Expects a raw standard symmetric AES key and asymmetric `public_key.pem` on the local file system alongside the runtime arguments.
-* **Hardware Mode:** Expects pre-provisioned or securely imported transient RAM Key Slot IDs inside the ELE Keystore (both for the AES decryption key and the ECDSA public key). Raw key material is never exposed to Linux user-space memory.
+### Out of Scope
+
+- Provisioning or replacing keys in ELE storage.
+- Loading a private signing key on the target.
+- Running model inference after validation.
+- System-wide secure boot, AHAB, or `dm-verity` integration, which is deferred to Phase 4.
+
+## 3. Protected Asset Format
+
+The same files are accepted by both engines:
+
+```text
+model.tflite.enc:
+  bytes 0..15       random 16-byte AES-CBC IV
+  remaining bytes   AES-256-CBC ciphertext with PKCS#7 padding
+
+model.tflite.sig:
+  ECDSA P-256 / SHA-256 signature over the plaintext model
+```
+
+OpenSSL produces a DER-encoded ECDSA signature. PKCS#11 `CKM_ECDSA_SHA256` expects raw P-256 `R || S`, so the PKCS#11 engine converts DER signatures to two 32-byte big-endian integers before verification. It also accepts an already-raw 64-byte signature.
+
+## 4. Architecture
+
+```text
+[ encrypted model + detached signature ]
+                    |
+                    v
+          [ ValidationRunner ]
+                    |
+          +---------+---------+
+          |                   |
+          v                   v
+ [ OpenSslEngine ]     [ Pkcs11Engine ]
+ local AES key file    SMW PKCS#11 module
+ public-key PEM        provisioned ELE objects
+          |                   |
+          +---------+---------+
+                    |
+          decrypt -> verify
+                    |
+                    v
+       [ PASS + plaintext | FAIL ]
+```
+
+The PKCS#11 backend dynamically loads the configured module with `dlopen` and obtains the API through `C_GetFunctionList`. It initializes PKCS#11, validates the requested slot and mechanisms, opens a session, logs in as `CKU_USER`, and locates exactly one AES key and one EC verification key.
+
+SMW uses `CKM_AES_CBC` for this flow. The application therefore retains the final plaintext block, validates PKCS#7 padding after `C_DecryptFinal`, and only then releases the unpadded bytes. Signature verification is streamed through `C_VerifyUpdate` and completed with `C_VerifyFinal` using `CKM_ECDSA_SHA256`.
 
 ### Components
+
 - `ValidationConfig`
-  - `model_path` (encrypted `.tflite.enc`)
-  - `signature_path` (detached `.sig`)
-  - `engine` (`openssl` or `ele`)
-  - `key_source` (software file paths vs ELE key slot IDs)
-  - `chunk_size`
+  - encrypted model and detached signature paths
+  - selected engine and chunk size
+  - OpenSSL key-file paths
+  - PKCS#11 module, slot, optional PIN, and object selectors
+  - optional verified plaintext output path
 - `ValidationResult`
-  - `engine`
-  - `integrity_pass`
-  - `decrypt_latency_ms`
-  - `verify_latency_ms`
-  - `total_latency_ms`
-- `CryptoEngine` (abstract interface)
-  - `decrypt_chunk()` — decrypt one ciphertext block into plaintext
-  - `verify_signature()` — verify the accumulated digest against the detached signature
-  - `init()` / `release()` — set up and tear down engine/session resources
+  - engine
+  - integrity result
+  - decrypt, verify, and total latency
+  - failure message
+- `CryptoEngine`
+  - abstract streaming decrypt and verify interface
+  - optional engine-specific diagnostic through `last_error()`
 - `OpenSslEngine : CryptoEngine`
-  - software path via `libcrypto`
-  - AES-256 chunk decryption with a local raw key
-  - ECDSA P-256 verification using `model_public_key.pem`
-- `EleEngine : CryptoEngine`
-  - hardware path via the EdgeLock Secure Enclave
-  - chunk decryption through `hsm_cipher_one_go`
-  - signature verification through `hsm_verify_signature`
-  - opens the ELE key store / cipher service session and references key slot IDs
+  - AES-256-CBC decryption through OpenSSL EVP
+  - ECDSA P-256/SHA-256 verification with a PEM public key
+  - development-only raw AES key loading
+- `Pkcs11Engine : CryptoEngine`
+  - dynamically loads the SMW PKCS#11 module
+  - opens and closes the slot/session/login lifecycle
+  - discovers AES and EC public-key objects by label and/or ID
+  - decrypts through `C_DecryptInit`, `C_DecryptUpdate`, and `C_DecryptFinal`
+  - verifies through `C_VerifyInit`, `C_VerifyUpdate`, and `C_VerifyFinal`
+  - converts DER ECDSA signatures to raw P-256 `R || S`
 - `ModelDecryptor`
-  - streams the encrypted model in chunks through the selected `CryptoEngine`
-  - accumulates plaintext for handoff to inference
+  - streams ciphertext through the selected engine
+  - accumulates plaintext only for the current validation operation
 - `SignatureVerifier`
-  - accumulates a SHA-256 digest over the decrypted plaintext
-  - delegates final verification of the digest + `.sig` to the `CryptoEngine`
+  - streams decrypted plaintext into the selected verification backend
 - `CliReporter`
-  - tabular output of engine vs. decrypt/verify latency and integrity pass/fail
+  - prints integrity result and latency measurements
 
-## 4. Implementation Roadmap
+## 5. PKCS#11 Object Requirements
 
-### Sub-Phase 3.1: Offline Tooling & Software Engine Baseline (OpenSSL Host & HW)
-* **Goal:** Establish the crypto pipeline and verification logic without hardware drivers.
-* **Tasks:**
-  * Design an offline tooling pipeline (Bash/Python scripts) to encrypt TFLite models via AES-256 and generate separate `.sig` signature files.
-  * Integrate standard OpenSSL (`libcrypto`) into the C++ application to parse input parameters, decrypt the model file in chunks, and verify integrity against the provided signature file using local software keys.
+The board owner provisions the objects separately. The application does not create, import, overwrite, or delete ELE objects.
 
-### Sub-Phase 3.2: Enclave Engine Integration (ELE on HW)
-* **Goal:** Offload both chunk decryption and integrity verification to dedicated secure hardware and analyze performance.
-* **Tasks:**
-  * Implement a pre-inference verification stage in the C++ runtime to dynamically toggle to the ELE verification engine.
-  * Implement an operational loop inside the C++ code to stream encrypted model chunks directly through the ELE Messaging Unit via the `hsm_cipher_one_go` API.
-  * Accumulate the resulting plaintext chunk data into a local SHA-256 hashing context before passing the final digest to `hsm_verify_signature`.
-  * Extract benchmarks measuring cryptographic performance overhead of the hardware messaging channel before system-wide platform-level locking occurs in Phase 4.
+### AES Decryption Object
 
-## 5. CMake Requirements
+- `CKA_CLASS = CKO_SECRET_KEY`
+- `CKA_KEY_TYPE = CKK_AES`
+- AES-256 key material
+- decryption permitted with `CKM_AES_CBC`
 
-To support the dual-engine design, the `CMakeLists.txt` within the application directory must dynamically find and link both standard cryptographic libraries and the NXP-specific secure enclave libraries if compiled for the target architecture.
+### Signature Verification Object
 
-### Package & Library Dependencies
-* **`OpenSSL::Crypto`:** Required across all platforms for chunk decryption and the software engine validation.
-* **`libhsm` / `imx-secure-enclave`:** Required only when compiling for the target system. 
+- `CKA_CLASS = CKO_PUBLIC_KEY`
+- `CKA_KEY_TYPE = CKK_EC`
+- ECDSA P-256 public key
+- verification permitted with `CKM_ECDSA_SHA256`
 
-### Minimal Structural Requirements
-```cmake
-cmake_minimum_required(VERSION 3.16)
-project(ai-cpp-validation-security)
+Each object must be selected with a label, an ID, or both. When both are supplied, both attributes must match the same unique object. SMW does not require a PIN, so the default login passes a null, zero-length PIN; an optional PIN is supported for generic PKCS#11 testing.
 
-# 1. Standard C++ Setup
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+## 6. Implementation Roadmap
 
-# 2. Find OpenSSL (LibCrypto is mandatory for chunk decryption)
-find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+### Sub-Phase 3.1: OpenSSL Baseline
 
-# 3. Optional/Conditional target compilation for NXP ELE
-option(ENABLE_IMX_ELE "Enable NXP EdgeLock Enclave hardware support" OFF)
+- Generate the encrypted model and detached plaintext signature offline.
+- Implement streaming AES-256-CBC decryption.
+- Implement ECDSA P-256/SHA-256 verification.
+- Validate happy and negative paths on the host and i.MX93.
 
-if(ENABLE_IMX_ELE)
-    # Expecting the Yocto SDK/sysroot to provide the imx-secure-enclave headers and libs
-    find_library(IMX_HSM_LIB NAMES hsm REQUIRED)
-    include_directories(/usr/include/imx-secure-enclave)
-    add_compile_definitions(HAS_EDGE_LOCK_ENCLAVE=1)
-endif()
+### Sub-Phase 3.2: SMW PKCS#11 Engine
 
-# 4. Target Executable Definition
-add_executable(ai-cpp-validation main.cpp)
+- Dynamically load the SMW PKCS#11 module.
+- Add slot/session/login management and object discovery.
+- Add multipart AES-CBC decryption with application-side PKCS#7 validation.
+- Add multipart ECDSA-SHA256 verification and DER-to-raw conversion.
+- Cross-compile against the target Yocto SDK PKCS#11 headers.
 
-# 5. Link Libraries
-target_link_libraries(ai-cpp-validation PRIVATE OpenSSL::Crypto)
+### Sub-Phase 3.3: Hardware Validation
 
-if(ENABLE_IMX_ELE)
-    target_link_libraries(ai-cpp-validation PRIVATE ${IMX_HSM_LIB})
-endif()
+- Run against user-provisioned ELE-backed AES and EC objects.
+- Confirm the same encrypted asset passes through both engines.
+- Record decrypt, verify, and total hardware latency.
+- Confirm raw AES key material and private signing keys do not enter application memory in PKCS#11 mode.
+
+## 7. Build Requirements
+
+OpenSSL is always required. PKCS#11 support is optional at build time and requires the NXP SDK headers `pkcs11.h`, `pkcs11t.h`, and `pkcs11f.h`.
+
+```bash
+cmake -S . -B build
+cmake --build build
+
+cmake -S . -B build-pkcs11 \
+  -DENABLE_SMW_PKCS11=ON \
+  -DSMW_PKCS11_INCLUDE_DIR=/path/to/sdk/include/smw_pkcs11
+cmake --build build-pkcs11
+```
+
+The target SMW library is loaded at runtime rather than linked into the executable.

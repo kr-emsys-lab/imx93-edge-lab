@@ -8,9 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 2. Find OpenSSL (libcrypto is mandatory for the software engine)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 
-# 3. Optional/conditional target compilation for the NXP EdgeLock Enclave.
-#    The ELE engine itself lands in Phase 3.2; this wiring is kept ready.
-option(ENABLE_IMX_ELE "Enable NXP EdgeLock Enclave hardware support" OFF)
+# 3. Optional NXP SMW PKCS#11 backend for EdgeLock Enclave access.
+option(ENABLE_SMW_PKCS11 "Enable the NXP SMW PKCS#11 engine" OFF)
 
 # 4. Target executable
 add_executable(ai-cpp-validation
@@ -23,10 +22,16 @@ target_include_directories(ai-cpp-validation PRIVATE src)
 # 5. Link libraries
 target_link_libraries(ai-cpp-validation PRIVATE OpenSSL::Crypto)
 
-if(ENABLE_IMX_ELE)
-    # Expecting the Yocto SDK/sysroot to provide the imx-secure-enclave headers/libs.
-    find_library(IMX_HSM_LIB NAMES hsm REQUIRED)
-    target_include_directories(ai-cpp-validation PRIVATE /usr/include/imx-secure-enclave)
-    target_compile_definitions(ai-cpp-validation PRIVATE HAS_EDGE_LOCK_ENCLAVE=1)
-    target_link_libraries(ai-cpp-validation PRIVATE ${IMX_HSM_LIB})
+if(ENABLE_SMW_PKCS11)
+    find_path(SMW_PKCS11_INCLUDE_DIR
+        NAMES pkcs11.h
+        PATH_SUFFIXES smw_pkcs11
+    )
+    if(NOT SMW_PKCS11_INCLUDE_DIR)
+        message(FATAL_ERROR "SMW PKCS#11 headers not found; set SMW_PKCS11_INCLUDE_DIR")
+    endif()
+    target_sources(ai-cpp-validation PRIVATE src/pkcs11_engine.cpp)
+    target_include_directories(ai-cpp-validation PRIVATE ${SMW_PKCS11_INCLUDE_DIR})
+    target_compile_definitions(ai-cpp-validation PRIVATE HAS_SMW_PKCS11=1)
+    target_link_libraries(ai-cpp-validation PRIVATE ${CMAKE_DL_LIBS})
 endif()

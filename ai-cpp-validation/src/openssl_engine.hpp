@@ -10,16 +10,16 @@ namespace imx93 {
 
 // Software CryptoEngine backed by OpenSSL libcrypto. Keys live in user-space
 // memory, so this path is intended for local development and logic validation
-// only (see README.md). The hardware-isolated path is provided by EleEngine.
+// only (see README.md).
 class OpenSslEngine : public CryptoEngine {
 public:
-    explicit OpenSslEngine(const std::string& public_key_path);
+    OpenSslEngine(std::vector<uint8_t> aes_key,
+                  const std::string& public_key_path);
     ~OpenSslEngine() override;
 
     std::string name() const override { return "openssl"; }
 
-    bool DecryptBegin(const std::vector<uint8_t>& key,
-                      const std::vector<uint8_t>& iv) override;
+    bool DecryptBegin(const std::vector<uint8_t>& iv) override;
     bool DecryptUpdate(const uint8_t* in, size_t in_len,
                        std::vector<uint8_t>& out) override;
     bool DecryptFinish(std::vector<uint8_t>& out) override;
@@ -29,6 +29,7 @@ public:
     bool VerifyFinal(const std::vector<uint8_t>& signature) override;
 
 private:
+    std::vector<uint8_t> aes_key_;
     std::string public_key_path_;
     EVP_PKEY* public_key_ = nullptr;
     EVP_CIPHER_CTX* cipher_ctx_ = nullptr;

@@ -9,6 +9,9 @@
 #include <memory>
 
 #include "openssl_engine.hpp"
+#ifdef HAS_SMW_PKCS11
+#include "pkcs11_engine.hpp"
+#endif
 
 namespace imx93 {
 
@@ -21,15 +24,36 @@ double ElapsedMs(Clock::time_point start, Clock::time_point end) {
 }
 
 std::unique_ptr<CryptoEngine> MakeEngine(const ValidationConfig& config,
+                                         std::vector<uint8_t> aes_key,
                                          std::string& error) {
     switch (config.engine) {
         case Engine::OpenSSL:
-            return std::make_unique<OpenSslEngine>(config.public_key_path);
-        case Engine::ELE:
-            // TODO(Phase 3.2): EdgeLock Enclave engine via hsm_cipher_one_go /
-            // hsm_verify_signature. Tracked in ai-cpp-validation/feature.md.
-            error = "ELE engine not yet implemented (Phase 3.2)";
+            return std::make_unique<OpenSslEngine>(std::move(aes_key),
+                                                    config.public_key_path);
+        case Engine::Pkcs11:
+#ifdef HAS_SMW_PKCS11
+        {
+            Pkcs11Config pkcs11_config;
+            pkcs11_config.module_path = config.pkcs11_module;
+            pkcs11_config.slot = static_cast<CK_SLOT_ID>(config.pkcs11_slot);
+            pkcs11_config.pin = config.pkcs11_pin;
+            pkcs11_config.aes_key = {config.aes_key_label,
+                                     config.aes_key_id};
+            pkcs11_config.verify_key = {config.verify_key_label,
+                                        config.verify_key_id};
+            auto engine = std::make_unique<Pkcs11Engine>(
+                std::move(pkcs11_config));
+            if (!engine->ready()) {
+                error = engine->last_error();
+                return nullptr;
+            }
+            return engine;
+        }
+#else
+            error = "PKCS#11 engine not compiled; rebuild with "
+                    "-DENABLE_SMW_PKCS11=ON";
             return nullptr;
+#endif
     }
     error = "Unknown engine";
     return nullptr;
@@ -53,36 +77,41 @@ bool WriteFile(const std::string& path, const std::vector<uint8_t>& data) {
     return static_cast<bool>(f);
 }
 
-bool ReadHexKey(const std::string& path, std::vector<uint8_t>& out) {
-    std::ifstream f(path);
-    if (!f) return false;
-    std::string hex((std::istreambuf_iterator<char>(f)),
-                    std::istreambuf_iterator<char>());
+bool ParseHex(const std::string& value, std::vector<uint8_t>& out) {
+    std::string hex = value;
     hex.erase(std::remove_if(hex.begin(), hex.end(),
                              [](unsigned char c) { return std::isspace(c); }),
               hex.end());
-    if (hex.size() % 2 != 0) return false;
+    if (hex.empty() || hex.size() % 2 != 0 ||
+        !std::all_of(hex.begin(), hex.end(), [](unsigned char c) {
+            return std::isxdigit(c);
+        })) {
+        return false;
+    }
     out.clear();
     out.reserve(hex.size() / 2);
     for (size_t i = 0; i < hex.size(); i += 2) {
-        if (!std::isxdigit(static_cast<unsigned char>(hex[i])) ||
-            !std::isxdigit(static_cast<unsigned char>(hex[i + 1]))) {
-            return false;
-        }
         out.push_back(static_cast<uint8_t>(
             std::stoi(hex.substr(i, 2), nullptr, 16)));
     }
     return true;
 }
 
+bool ReadHexKey(const std::string& path, std::vector<uint8_t>& out) {
+    std::ifstream f(path);
+    if (!f) return false;
+    std::string hex((std::istreambuf_iterator<char>(f)),
+                    std::istreambuf_iterator<char>());
+    return ParseHex(hex, out);
+}
+
 bool ModelDecryptor::Decrypt(CryptoEngine& engine,
-                             const std::vector<uint8_t>& key,
                              const std::vector<uint8_t>& iv,
                              const std::vector<uint8_t>& ciphertext,
                              size_t chunk_size,
                              std::vector<uint8_t>& plaintext_out) {
     plaintext_out.clear();
-    if (!engine.DecryptBegin(key, iv)) return false;
+    if (!engine.DecryptBegin(iv)) return false;
 
     std::vector<uint8_t> chunk_out;
     for (size_t offset = 0; offset < ciphertext.size(); offset += chunk_size) {
@@ -113,11 +142,13 @@ bool SignatureVerifier::Verify(CryptoEngine& engine,
 
 ValidationResult ValidationRunner::Run(const ValidationConfig& config) {
     ValidationResult result;
-    result.engine = (config.engine == Engine::ELE) ? "ele" : "openssl";
+    result.engine =
+        (config.engine == Engine::Pkcs11) ? "pkcs11" : "openssl";
 
-    std::unique_ptr<CryptoEngine> engine = MakeEngine(config, result.error);
-    if (!engine) return result;
-    result.engine = engine->name();
+    if (config.chunk_size == 0) {
+        result.error = "Chunk size must be greater than zero";
+        return result;
+    }
 
     std::vector<uint8_t> encrypted;
     if (!ReadFile(config.model_path, encrypted)) {
@@ -130,8 +161,9 @@ ValidationResult ValidationRunner::Run(const ValidationConfig& config) {
     }
 
     std::vector<uint8_t> key;
-    if (!ReadHexKey(config.aes_key_path, key) ||
-        key.size() != CryptoEngine::kKeyLength) {
+    if (config.engine == Engine::OpenSSL &&
+        (!ReadHexKey(config.aes_key_path, key) ||
+         key.size() != CryptoEngine::kKeyLength)) {
         result.error = "Failed to read 32-byte hex AES key: " +
                        config.aes_key_path;
         return result;
@@ -143,6 +175,11 @@ ValidationResult ValidationRunner::Run(const ValidationConfig& config) {
         return result;
     }
 
+    std::unique_ptr<CryptoEngine> engine =
+        MakeEngine(config, std::move(key), result.error);
+    if (!engine) return result;
+    result.engine = engine->name();
+
     std::vector<uint8_t> iv(encrypted.begin(),
                             encrypted.begin() + CryptoEngine::kIvLength);
     std::vector<uint8_t> ciphertext(
@@ -153,12 +190,16 @@ ValidationResult ValidationRunner::Run(const ValidationConfig& config) {
     ModelDecryptor decryptor;
     std::vector<uint8_t> plaintext;
     auto dec_start = Clock::now();
-    bool decrypted = decryptor.Decrypt(*engine, key, iv, ciphertext,
+    bool decrypted = decryptor.Decrypt(*engine, iv, ciphertext,
                                        config.chunk_size, plaintext);
     auto dec_end = Clock::now();
     result.decrypt_latency_ms = ElapsedMs(dec_start, dec_end);
     if (!decrypted) {
-        result.error = "Decryption failed (wrong key or corrupted ciphertext)";
+        result.error = engine->last_error();
+        if (result.error.empty()) {
+            result.error =
+                "Decryption failed (wrong key or corrupted ciphertext)";
+        }
         result.total_latency_ms = ElapsedMs(total_start, Clock::now());
         return result;
     }
@@ -173,7 +214,10 @@ ValidationResult ValidationRunner::Run(const ValidationConfig& config) {
     result.total_latency_ms = ElapsedMs(total_start, Clock::now());
 
     if (!result.integrity_pass) {
-        result.error = "Signature verification failed";
+        result.error = engine->last_error();
+        if (result.error.empty()) {
+            result.error = "Signature verification failed";
+        }
     } else if (!config.output_path.empty()) {
         if (!WriteFile(config.output_path, plaintext)) {
             result.error = "Verified, but failed to write output: " +

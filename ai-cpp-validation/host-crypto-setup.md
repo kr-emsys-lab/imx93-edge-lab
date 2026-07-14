@@ -2,10 +2,7 @@
 
 This guide details the offline steps required on the Linux development host machine (WSL2 / Ubuntu) to secure and prepare target AI model assets before deploying them to the i.MX93 hardware.
 
-> ⚠️ **SECURITY DISCLAIMER & PRODUCTION WARNING**
-> The local cryptographic operations outlined below are strictly for **proof-of-concept (PoC) and demonstration purposes**. 
-> * **The Risk:** Generating and storing raw asymmetric private keys (`model_private_key.pem`) and symmetric deployment keys (`model_aes.key`) on a local development host exposes critical key material to the host environment's file system and memory space.
-> * **Production Implementation:** In a production-grade infrastructure, raw key material must never reside on a developer host. The signing and asset-encryption pipeline must be offloaded to a secure, audited environment such as an enterprise Cloud Key Management Service (e.g., AWS KMS, Azure Key Vault, Google Cloud KMS) or a dedicated Hardware Security Module (HSM) integrated into the corporate CI/CD signing pipeline.
+> **Security disclaimer:** The local cryptographic operations below are for proof-of-concept and demonstration purposes. Generating and storing `model_private_key.pem` and `model_aes.key` on a development host exposes key material to that host. A production signing and encryption pipeline must use a secure, audited KMS or HSM environment.
 
 ---
 
@@ -18,7 +15,7 @@ Generate the asymmetric ECDSA key pair used for model signing, and a symmetric A
 # Generate ECDSA Private Key (prime256v1 curve)
 openssl ecparam -name prime256v1 -genkey -noout -out model_private_key.pem
 
-# Extract the Public Key (to be deployed/provisioned on the target target)
+# Extract the public key that corresponds to the target verification object
 openssl ec -in model_private_key.pem -pubout -out model_public_key.pem
 
 # Generate a random 256-bit key for AES-256-CBC encryption
@@ -48,10 +45,14 @@ The signature is computed over the **plaintext** model. The runtime decrypts fir
 openssl dgst -sha256 -sign model_private_key.pem -out model.tflite.sig model.tflite
 ```
 
+OpenSSL emits a DER-encoded ECDSA signature. The PKCS#11 runtime converts it to the raw 64-byte P-256 `R || S` form required by `CKM_ECDSA_SHA256`.
+
 ### Encrypted File Format
 | Offset | Size      | Contents                          |
 | :----- | :-------- | :-------------------------------- |
 | 0      | 16 bytes  | AES-CBC initialization vector     |
 | 16     | remainder | AES-256-CBC ciphertext (PKCS#7)   |
 
-> 💡 **Shortcut:** `scripts/prepare_model.sh <model.tflite> [out_dir]` runs all three steps above (generating keys if absent) and prints the exact `ai-cpp-validation` command to run on the target.
+**Shortcut:** `scripts/prepare_model.sh <model.tflite> [out_dir]` runs all three steps above, generating development keys if absent.
+
+For PKCS#11 execution, provision an ELE-backed AES object containing the same AES-256 key and an EC public-key object corresponding to `model_private_key.pem`. Copy only the encrypted model and detached signature to the board. The user owns provisioning; this project does not create, overwrite, or delete ELE objects.
