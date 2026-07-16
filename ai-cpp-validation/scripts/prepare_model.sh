@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Offline host tooling for the ai-cpp-validation OpenSSL path.
+# Offline host tooling for the OpenSSL and PKCS#11 validation paths.
 #
 # Generates the cryptographic assets and produces an encrypted model plus a
 # detached signature in the exact format the C++ runtime expects:
@@ -13,8 +13,9 @@
 #   prepare_model.sh <plaintext_model> [output_dir] [keys_dir]
 #
 # WARNING: For proof-of-concept / local validation only. Raw key material on a
-# developer host is insecure; production signing must use an HSM/KMS. See
-# host-crypto-setup.md.
+# developer host is insecure; production signing must use an HSM/KMS. PKCS#11
+# execution requires matching AES and EC public-key objects to be provisioned
+# separately. See host-crypto-setup.md.
 
 set -euo pipefail
 
@@ -79,3 +80,6 @@ echo "    --model $ENC \\"
 echo "    --signature $SIG \\"
 echo "    --aes-key $AES_KEY \\"
 echo "    --public-key $PUB_KEY"
+echo ""
+echo "For PKCS#11, provision matching AES and EC public-key objects, then copy"
+echo "only $ENC and $SIG to the target."

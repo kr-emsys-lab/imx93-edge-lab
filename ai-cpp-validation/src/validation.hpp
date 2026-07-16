@@ -10,7 +10,7 @@ namespace imx93 {
 
 enum class Engine {
     OpenSSL,
-    ELE,
+    Pkcs11,
 };
 
 struct ValidationConfig {
@@ -19,6 +19,13 @@ struct ValidationConfig {
     Engine engine = Engine::OpenSSL;
     std::string aes_key_path;     // software mode: hex-encoded AES-256 key file
     std::string public_key_path;  // software mode: ECDSA public key (PEM)
+    std::string pkcs11_module = "/usr/lib/libsmw_pkcs11.so.5";
+    unsigned long pkcs11_slot = 0;
+    std::string pkcs11_pin;
+    std::string aes_key_label;
+    std::vector<uint8_t> aes_key_id;
+    std::string verify_key_label;
+    std::vector<uint8_t> verify_key_id;
     std::string output_path;      // optional: write decrypted plaintext here
     size_t chunk_size = 64 * 1024;
 };
@@ -35,8 +42,7 @@ struct ValidationResult {
 // Streams the encrypted model through a CryptoEngine, accumulating plaintext.
 class ModelDecryptor {
 public:
-    bool Decrypt(CryptoEngine& engine, const std::vector<uint8_t>& key,
-                 const std::vector<uint8_t>& iv,
+    bool Decrypt(CryptoEngine& engine, const std::vector<uint8_t>& iv,
                  const std::vector<uint8_t>& ciphertext, size_t chunk_size,
                  std::vector<uint8_t>& plaintext_out);
 };
@@ -62,5 +68,6 @@ public:
 bool ReadFile(const std::string& path, std::vector<uint8_t>& out);
 bool WriteFile(const std::string& path, const std::vector<uint8_t>& data);
 bool ReadHexKey(const std::string& path, std::vector<uint8_t>& out);
+bool ParseHex(const std::string& hex, std::vector<uint8_t>& out);
 
 } // namespace imx93

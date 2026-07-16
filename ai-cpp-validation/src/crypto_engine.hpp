@@ -8,18 +8,19 @@
 namespace imx93 {
 
 // Cryptographic backend abstraction. Concrete engines provide either a
-// software path (OpenSSL/libcrypto) or a hardware path (EdgeLock Secure
-// Enclave). Decryption and signature verification are both streaming so the
-// model can be processed chunk by chunk without buffering twice.
+// software path (OpenSSL/libcrypto) or a PKCS#11 hardware path. Decryption and
+// signature verification are streaming so the model can be processed in
+// chunks.
 class CryptoEngine {
 public:
     virtual ~CryptoEngine() = default;
 
     virtual std::string name() const = 0;
+    virtual std::string last_error() const { return {}; }
 
-    // AES-256-CBC decryption, fed one ciphertext chunk at a time.
-    virtual bool DecryptBegin(const std::vector<uint8_t>& key,
-                              const std::vector<uint8_t>& iv) = 0;
+    // AES-256-CBC decryption, fed one ciphertext chunk at a time. Engine key
+    // configuration is supplied when the concrete engine is constructed.
+    virtual bool DecryptBegin(const std::vector<uint8_t>& iv) = 0;
     virtual bool DecryptUpdate(const uint8_t* in, size_t in_len,
                                std::vector<uint8_t>& out) = 0;
     virtual bool DecryptFinish(std::vector<uint8_t>& out) = 0;

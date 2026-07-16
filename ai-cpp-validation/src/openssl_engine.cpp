@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <iostream>
+#include <utility>
 
 #include <openssl/err.h>
 #include <openssl/pem.h>
@@ -17,8 +18,9 @@ void PrintOpenSslError(const char* context) {
 }
 } // namespace
 
-OpenSslEngine::OpenSslEngine(const std::string& public_key_path)
-    : public_key_path_(public_key_path) {
+OpenSslEngine::OpenSslEngine(std::vector<uint8_t> aes_key,
+                             const std::string& public_key_path)
+    : aes_key_(std::move(aes_key)), public_key_path_(public_key_path) {
     FILE* fp = std::fopen(public_key_path_.c_str(), "r");
     if (fp == nullptr) {
         std::cerr << "Failed to open public key: " << public_key_path_ << "\n";
@@ -37,10 +39,9 @@ OpenSslEngine::~OpenSslEngine() {
     if (public_key_ != nullptr) EVP_PKEY_free(public_key_);
 }
 
-bool OpenSslEngine::DecryptBegin(const std::vector<uint8_t>& key,
-                                 const std::vector<uint8_t>& iv) {
-    if (key.size() != kKeyLength || iv.size() != kIvLength) {
-        std::cerr << "Invalid AES key (" << key.size() << "B) or IV ("
+bool OpenSslEngine::DecryptBegin(const std::vector<uint8_t>& iv) {
+    if (aes_key_.size() != kKeyLength || iv.size() != kIvLength) {
+        std::cerr << "Invalid AES key (" << aes_key_.size() << "B) or IV ("
                   << iv.size() << "B)\n";
         return false;
     }
@@ -49,8 +50,8 @@ bool OpenSslEngine::DecryptBegin(const std::vector<uint8_t>& key,
         PrintOpenSslError("EVP_CIPHER_CTX_new");
         return false;
     }
-    if (EVP_DecryptInit_ex(cipher_ctx_, EVP_aes_256_cbc(), nullptr, key.data(),
-                           iv.data()) != 1) {
+    if (EVP_DecryptInit_ex(cipher_ctx_, EVP_aes_256_cbc(), nullptr,
+                           aes_key_.data(), iv.data()) != 1) {
         PrintOpenSslError("EVP_DecryptInit_ex");
         return false;
     }
