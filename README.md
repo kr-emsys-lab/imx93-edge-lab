@@ -19,7 +19,13 @@ The repository is organized into distinct feature modules. Project-wide document
 The feature of this toolkit is the `ai-cpp-benchmarks` application. It is a streamlined C++ tool built to measure and compare TensorFlow Lite inference latency directly on the i.MX93 hardware.
 
 ## Edge AI Validation (OpenSSL vs. EdgeLock Secure Enclave)
-The feature of this toolkit is the `ai-cpp-validation` application. It is a streamlined C++ tool built to decrypt, verify the ML Models directly on the i.MX93 hardware.
+The feature of this toolkit is the `ai-cpp-validation` application. It is a streamlined C++ tool built to decrypt and verify encrypted TensorFlow Lite models directly on the i.MX93 hardware.
+
+**Development Strategy (Phase 3):** Models are encrypted with AES-256-CBC and signed with ECDSA P-256/SHA-256. Development validation uses plaintext key injection via `pkcs11-tool` to establish baseline cryptographic latency on the target.
+
+**Production Strategy (Phase 3.5, Planned):** Secure AES key provisioning via NXP SPSDK and ELE Secure Import blob generation will eliminate plaintext key exposure on the provisioning path. Keys will be securely imported into the EdgeLock Secure Enclave and remain hardware-protected during runtime decryption operations.
+
+See **PHASES.md** for the complete roadmap and technical details of the secure key import flow.
 
 > **Developer Note:** We are actively building out more features! Check out **PHASES.md** to see our internal development roadmap and upcoming milestones (like Vision Model Demos and Power Monitoring).
 
